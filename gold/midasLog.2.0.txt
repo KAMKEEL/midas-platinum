@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="windows-1252" standalone="no"?>
+<!DOCTYPE log SYSTEM "logger.dtd">
+<log>
+<record>
+  <date>2023-02-13T10:04:23.803613300Z</date>
+  <millis>1676282663803</millis>
+  <nanos>613300</nanos>
+  <sequence>0</sequence>
+  <logger>pfaeff.IDChanger</logger>
+  <level>SEVERE</level>
+  <class>pfaeff.IDChanger</class>
+  <method>main</method>
+  <thread>1</thread>
+  <message>Runtime Exception</message>
+  <exception>
+    <message>java.lang.ClassCastException: class jdk.internal.loader.ClassLoaders$AppClassLoader cannot be cast to class java.net.URLClassLoader (jdk.internal.loader.ClassLoaders$AppClassLoader and java.net.URLClassLoader are in module java.base of loader 'bootstrap')</message>
+    <frame>
+      <class>havocx42.PluginLoader</class>
+      <method>loadPlugins</method>
+    </frame>
+    <frame>
+      <class>pfaeff.IDChanger</class>
+      <method>initPlugins</method>
+    </frame>
+    <frame>
+      <class>pfaeff.IDChanger</class>
+      <method>&lt;init&gt;</method>
+    </frame>
+    <frame>
+      <class>pfaeff.IDChanger</class>
+      <method>main</method>
+    </frame>
+  </exception>
+</record>
+<record>
+  <date>2023-02-13T10:04:25.283603800Z</date>
+  <millis>1676282665283</millis>
+  <nanos>603800</nanos>
+  <sequence>1</sequence>
+  <logger>pfaeff.IDChanger</logger>
+  <level>CONFIG</level>
+  <class>pfaeff.IDChanger</class>
+  <method>main</method>
+  <thread>1</thread>
+  <message>System Look and Feel:com.sun.java.swing.plaf.windows.WindowsLookAndFeel</message>
+</record>
+</log>

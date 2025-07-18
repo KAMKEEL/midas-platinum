@@ -1,5 +1,7 @@
 package plugins.convertblocksplugin;
 
+import java.nio.ByteBuffer;
+import java.nio.ShortBuffer;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
@@ -21,6 +23,7 @@ public class ConvertBlocks implements ConverterPlugin {
 
 	private int warnUnconvertedAfter;
 	private boolean countBlockStats;
+	public static final int BLOCKS_PER_EBS = 4096;
 
 	public ConvertBlocks(Integer warnUnconvertedAfter, boolean countBlockStats) {
 		if (warnUnconvertedAfter == null) {
@@ -48,16 +51,16 @@ public class ConvertBlocks implements ConverterPlugin {
 					Section section = new Section(sectionTag);
 					HashMap<Integer, BlockUID> indexToBlockIDs;
 					indexToBlockIDs = new HashMap<Integer, BlockUID>();
+					boolean found = false;
+
 					for (int i = 0; i < section.length(); i++) {
 						BlockUID blockUID = section.getBlockUID(i);
 						if (translations.containsKey(blockUID)) {
-								IDChanger.changedPlaced++;
-
+							IDChanger.changedPlaced++;
+							found = true;
 							if (translations.get(blockUID).dataValue == null || translations.get(blockUID).dataValue < 16) {
-
 								indexToBlockIDs.put(Integer.valueOf(i), translations.get(blockUID));
 							}
-
 							if (countBlockStats) {
 								Integer count = IDChanger.convertedBlockCount.get(blockUID);
 								if (count == null) {
@@ -73,17 +76,23 @@ public class ConvertBlocks implements ConverterPlugin {
 						}
 					}
 
+					if(found){
+						for (int i = 0; i < section.length(); i++) {
+							BlockUID blockUID = section.getBlockUID(i);
+							section.setBlockID(i, blockUID.blockID);
+						}
+					}
+
 					// write changes to nbt tree
 					Set<Map.Entry<Integer, BlockUID>> set = indexToBlockIDs.entrySet();
 					for (Entry<Integer, BlockUID> entry : set) {
 						section.setBlockUID(entry.getKey(), entry.getValue());
 					}
-					for (Entry<Integer, BlockUID> entry : set) {
-						if (!section.getBlockUID(entry.getKey()).equals(entry.getValue())) {
-							//ErrorHandler.logError(entry.getKey() + " not converted to " + entry.getValue());
-						}
-					}
-
+//					for (Entry<Integer, BlockUID> entry : set) {
+//						if (!section.getBlockUID(entry.getKey()).equals(entry.getValue())) {
+//							//ErrorHandler.logError(entry.getKey() + " not converted to " + entry.getValue());
+//						}
+//					}
 				}
 			}
 		}
@@ -93,5 +102,4 @@ public class ConvertBlocks implements ConverterPlugin {
 	public PluginType getPluginType() {
 		return PluginType.REGION;
 	}
-
 }
