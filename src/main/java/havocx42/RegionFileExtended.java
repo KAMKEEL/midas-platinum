@@ -65,16 +65,16 @@ public class RegionFileExtended extends region.RegionFile {
                 @Override
                 public void run() {
                     try {
-                        DataInputStream input = getChunkDataInputStream(p.x, p.y);
-                        CompoundTag root = NbtIo.read(input);
-                        for (ConverterPlugin plugin : regionPlugins) {
-                            plugin.convert(root, translations);
-                        }
-                        input.close();
+                        try (DataInputStream input = getChunkDataInputStream(p.x, p.y)) {
+                            CompoundTag root = NbtIo.read(input);
+                            for (ConverterPlugin plugin : regionPlugins) {
+                                plugin.convert(root, translations);
+                            }
 
-                        DataOutputStream out = output.getChunkDataOutputStream(p.x, p.y);
-                        NbtIo.write(root, out);
-                        out.close();
+                            try (DataOutputStream out = output.getChunkDataOutputStream(p.x, p.y)) {
+                                NbtIo.write(root, out);
+                            }
+                        }
 
                         int done = completedChunks.incrementAndGet();
                         if (listener != null) {
