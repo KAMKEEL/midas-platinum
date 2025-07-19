@@ -58,50 +58,26 @@ public class RegionFileExtended extends region.RegionFile {
         // LOG how many chunks are in this region
         IDChanger.logger.log(Level.INFO, "Chunks: " + chunks.size());
 
-        List<Future<?>> futures = new ArrayList<Future<?>>();
-        final java.util.concurrent.atomic.AtomicInteger regionDone =
-                new java.util.concurrent.atomic.AtomicInteger();
-
-        for (final Point p : chunks) {
-            futures.add(AsyncUtil.EXECUTOR.submit(new Runnable() {
-                @Override
-                public void run() {
-                    try {
-                        try (DataInputStream input = getChunkDataInputStream(p.x, p.y)) {
-                            CompoundTag root = NbtIo.read(input);
-                            for (ConverterPlugin plugin : regionPlugins) {
-                                plugin.convert(root, translations);
-                            }
-
-                            try (DataOutputStream out = output.getChunkDataOutputStream(p.x, p.y)) {
-                                NbtIo.write(root, out);
-                            }
-                        }
-
-                        int done = completedChunks.incrementAndGet();
-                        if (listener != null) {
-                            listener.update(done, totalChunks);
-                        }
-                        int rDone = regionDone.incrementAndGet();
-                        IDChanger.logger.log(Level.INFO,
-                                "Chunk " + rDone + "/" + chunks.size() +
-                                " complete in " + fileName.getName());
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
-                    }
+        int count = 0;
+        for (Point p : chunks) {
+            try (DataInputStream input = getChunkDataInputStream(p.x, p.y)) {
+                CompoundTag root = NbtIo.read(input);
+                for (ConverterPlugin plugin : regionPlugins) {
+                    plugin.convert(root, translations);
                 }
-            }));
-        }
 
-        for (Future<?> f : futures) {
-            try {
-                f.get();
-            } catch (Exception e) {
-                if (e.getCause() instanceof IOException) {
-                    throw (IOException) e.getCause();
+                try (DataOutputStream out = output.getChunkDataOutputStream(p.x, p.y)) {
+                    NbtIo.write(root, out);
                 }
-                throw new IOException(e);
             }
+
+            int done = completedChunks.incrementAndGet();
+            if (listener != null) {
+                listener.update(done, totalChunks);
+            }
+            count++;
+            IDChanger.logger.log(Level.INFO,
+                    "Chunk " + count + "/" + chunks.size() + " complete in " + fileName.getName());
         }
     }
 }

@@ -12,7 +12,7 @@ public class Section {
 	public ByteArrayTag dataTag;
 	public ByteArrayTag blocks16;
 
-	public static int BLOCKS_PER_EBS = 4096;
+        public static final int BLOCKS_PER_EBS = 4096;
 	public short[] block16BArray;
 
 	public Section(CompoundTag sectionTag) {
