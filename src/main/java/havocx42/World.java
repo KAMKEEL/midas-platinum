@@ -29,6 +29,7 @@ import agaricus.midasplugins.ProjectBenchPlugin;
 import com.mojang.nbt.*;
 
 import havocx42.buildcraftpipesplugin.BuildCraftPipesPlugin;
+import havocx42.AsyncUtil;
 import joptsimple.OptionSet;
 import pfaeff.IDChanger;
 import plugins.convertblocksplugin.ConvertBlocks;
@@ -59,7 +60,7 @@ public class World {
         playerFiles = getPlayerFiles();
     }
 
-    public void convert(HashMap<BlockUID, BlockUID> translations, OptionSet options) {
+    public void convert(final HashMap<BlockUID, BlockUID> translations, OptionSet options) {
         int count_file = 0;
         long beginTime = System.currentTimeMillis();
 
@@ -73,7 +74,7 @@ public class World {
         logger.log(Level.INFO, "Player inventories: "+ playerFiles.size());
 
         // load integrated plugins
-        ArrayList<ConverterPlugin> regionPlugins = new ArrayList<ConverterPlugin>();
+        final ArrayList<ConverterPlugin> regionPlugins = new ArrayList<ConverterPlugin>();
         if (!options.has("no-convert-blocks")) regionPlugins.add(new ConvertBlocks(
                 ((Integer)options.valueOf("warn-unconverted-block-id-after")),
                 this.countBlockStats));
@@ -145,14 +146,15 @@ public class World {
         logger.log(Level.INFO, "Region files: " + regionFiles.size());
 
         // calculate total chunks for progress reporting
-        int totalChunks = 0;
+        int totalChunksTmp = 0;
         for (RegionFileExtended r : regionFiles) {
-            totalChunks += r.countChunks();
+            totalChunksTmp += r.countChunks();
         }
+        final int totalChunks = totalChunksTmp;
 
-        java.util.concurrent.atomic.AtomicInteger completedChunks = new java.util.concurrent.atomic.AtomicInteger();
+        final java.util.concurrent.atomic.AtomicInteger completedChunks = new java.util.concurrent.atomic.AtomicInteger();
 
-        ProgressListener listener = new ProgressListener() {
+        final ProgressListener listener = new ProgressListener() {
             private int last = -1;
             @Override
             public synchronized void update(int done, int total) {
@@ -164,25 +166,43 @@ public class World {
             }
         };
 
-        for (RegionFileExtended r : regionFiles) {
+        java.util.List<java.util.concurrent.Future<?>> regionTasks = new java.util.ArrayList<java.util.concurrent.Future<?>>();
+
+        for (final RegionFileExtended r : regionFiles) {
             logger.log(Level.INFO, "Region " + count_file + "/" + regionFiles.size() + ": Current File: " + r.fileName.getName());
 
-            File destFile = new File(outputFolder, getRelativePath(inputFolder, r.fileName));
+            final File destFile = new File(outputFolder, getRelativePath(inputFolder, r.fileName));
             if (destFile.getParentFile() != null) destFile.getParentFile().mkdirs();
-            RegionFileExtended outRf = new RegionFileExtended(destFile);
 
+            regionTasks.add(AsyncUtil.EXECUTOR.submit(new Runnable() {
+                @Override
+                public void run() {
+                    RegionFileExtended outRf = null;
+                    try {
+                        outRf = new RegionFileExtended(destFile);
+                        r.convert(outRf, translations, regionPlugins, completedChunks, totalChunks, listener);
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    } finally {
+                        if (outRf != null) {
+                            try {
+                                outRf.close();
+                            } catch (IOException ignore) {}
+                        }
+                        try {
+                            r.close();
+                        } catch (IOException ignore) {}
+                    }
+                }
+            }));
+            count_file++;
+        }
+
+        for (java.util.concurrent.Future<?> f : regionTasks) {
             try {
-                r.convert(outRf, translations, regionPlugins, completedChunks, totalChunks, listener);
-            } catch (IOException e) {
-                logger.log(Level.SEVERE, "Unable to convert placed blocks", e);
-                return;
-            } finally {
-                try {
-                    outRf.close();
-                } catch (IOException ignore) {}
-                try {
-                    r.close();
-                } catch (IOException ignore) {}
+                f.get();
+            } catch (Exception e) {
+                throw new RuntimeException(e);
             }
         }
         long duration = System.currentTimeMillis() - beginTime;
