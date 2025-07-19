@@ -58,7 +58,7 @@ public class ConvertItems implements ConverterPlugin {
 							BlockUID currentBlock = new BlockUID(Integer.valueOf(idShortTag.data), Integer.valueOf(damageShortTag.data));
 							if (translations.containsKey(currentBlock)) {
 								BlockUID targetBlock = translations.get(currentBlock);
-								IDChanger.changedChest++;
+                                                                IDChanger.changedChest.incrementAndGet();
 								idShortTag.data = targetBlock.blockID.shortValue();
 								if (targetBlock.dataValue != null)
 									damageShortTag.data = targetBlock.dataValue.shortValue();

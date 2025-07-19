@@ -43,7 +43,7 @@ public class ConvertPlayerInventories implements ConverterPlugin {
 						if (translations.containsKey(blockUID)) {
 							BlockUID toval = translations.get(blockUID);
 							if (toval != null) {
-								IDChanger.changedPlayer++;
+                                                        IDChanger.changedPlayer.incrementAndGet();
 								idShortTag.data = toval.blockID.shortValue();
 								if (toval.dataValue != null) {
 									damageShortTag.data = toval.dataValue.shortValue();

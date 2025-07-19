@@ -55,7 +55,7 @@ public class ChargingBenchGregTechPlugin implements ConverterPlugin {
 
                 System.out.println("Converted to Charge_O_Mat");
 
-                IDChanger.changedPlaced++;
+                IDChanger.changedPlaced.incrementAndGet();
             }
         }
     }

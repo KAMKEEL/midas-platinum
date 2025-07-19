@@ -93,7 +93,7 @@ public class ProjectBenchPlugin implements ConverterPlugin {
 
                 System.out.println("Converted to bau5pbTileEntity");
 
-                IDChanger.changedPlaced++;
+                IDChanger.changedPlaced.incrementAndGet();
             }
         }
     }

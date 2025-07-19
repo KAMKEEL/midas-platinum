@@ -7,6 +7,9 @@ import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
+import java.util.concurrent.Future;
+import havocx42.AsyncUtil;
 import java.util.logging.Level;
 
 import com.mojang.nbt.CompoundTag;
@@ -21,8 +24,22 @@ public class RegionFileExtended extends region.RegionFile {
         super(path);
     }
 
-    public void convert(HashMap<BlockUID, BlockUID> translations, ArrayList<ConverterPlugin> regionPlugins)
-            throws IOException {
+    public int countChunks() {
+        int count = 0;
+        for (int x = 0; x < 32; x++) {
+            for (int z = 0; z < 32; z++) {
+                if (hasChunk(x, z)) {
+                    count++;
+                }
+            }
+        }
+        return count;
+    }
+
+    public void convert(RegionFileExtended output,
+            HashMap<BlockUID, BlockUID> translations, ArrayList<ConverterPlugin> regionPlugins,
+            java.util.concurrent.atomic.AtomicInteger completedChunks, int totalChunks,
+            ProgressListener listener) throws IOException {
 
         // Progress
 
@@ -38,34 +55,47 @@ public class RegionFileExtended extends region.RegionFile {
             }
         }
 
-        // PROGESSBAR CHUNK
+        // LOG how many chunks are in this region
         IDChanger.logger.log(Level.INFO, "Chunks: " + chunks.size());
 
-        int count_chunk = 0;
+        List<Future<?>> futures = new ArrayList<Future<?>>();
 
-        for (Point p : chunks) {
-            // Progress
-            //status.pb_chunk.setValue(count_chunk++);
-            IDChanger.logger.log(Level.INFO, "Current Chunk: (" + p.x + "; " + p.y + ")");
+        for (final Point p : chunks) {
+            futures.add(AsyncUtil.EXECUTOR.submit(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        DataInputStream input = getChunkDataInputStream(p.x, p.y);
+                        CompoundTag root = NbtIo.read(input);
+                        for (ConverterPlugin plugin : regionPlugins) {
+                            plugin.convert(root, translations);
+                        }
+                        input.close();
 
-            // Read chunks
+                        DataOutputStream out = output.getChunkDataOutputStream(p.x, p.y);
+                        NbtIo.write(root, out);
+                        out.close();
 
-            DataInputStream input = getChunkDataInputStream(p.x, p.y);
-            CompoundTag root = NbtIo.read(input);
-            // Find blocks
-            // convertRegion(UI,root, translations);
-            // find blocks and items in chest etc. inventory
-            // convertItems(UI,root, translations);
-            for (ConverterPlugin plugin : regionPlugins) {
-                plugin.convert(root, translations);
+                        int done = completedChunks.incrementAndGet();
+                        if (listener != null) {
+                            listener.update(done, totalChunks);
+                        }
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+            }));
+        }
+
+        for (Future<?> f : futures) {
+            try {
+                f.get();
+            } catch (Exception e) {
+                if (e.getCause() instanceof IOException) {
+                    throw (IOException) e.getCause();
+                }
+                throw new IOException(e);
             }
-
-            input.close();
-
-            // Write chunks
-            DataOutputStream output = getChunkDataOutputStream(p.x, p.y);
-            NbtIo.write(root, output);
-            output.close();
         }
     }
 }

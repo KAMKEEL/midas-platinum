@@ -24,7 +24,7 @@ public class BuildCraftPipesPlugin implements ConverterPlugin {
 				BlockUID block = new BlockUID((int) pipeidShortTag.data,null);
 				if(translations.containsKey(block)){
 					pipeidShortTag.data=translations.get(block).blockID.shortValue();
-					IDChanger.changedPlaced++;
+                                        IDChanger.changedPlaced.incrementAndGet();
 				}
 			}
 			

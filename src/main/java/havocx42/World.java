@@ -15,6 +15,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.zip.GZIPInputStream;
@@ -35,6 +36,11 @@ import plugins.convertitemsplugin.ConvertItems;
 import plugins.convertplayerinventoriesplugin.ConvertPlayerInventories;
 
 public class World {
+    /** Directory containing the source world. */
+    private final File inputFolder;
+    /** Directory that will receive converted data. */
+    private final File outputFolder;
+
     private File                            baseFolder;
     private ArrayList<RegionFileExtended>    regionFiles;
     private ArrayList<PlayerFile>            playerFiles;
@@ -42,8 +48,13 @@ public class World {
     private boolean countBlockStats;
     private boolean countItemStats;
 
-    public World(File path) throws IOException {
-        baseFolder = path;
+    public World(File input, File output) throws IOException {
+        this.inputFolder = input;
+        this.outputFolder = (output == null)
+                ? new File(input.getParentFile(), input.getName() + "_converted")
+                : output;
+
+        this.baseFolder = inputFolder;
         regionFiles = getRegionFiles();
         playerFiles = getPlayerFiles();
     }
@@ -51,6 +62,10 @@ public class World {
     public void convert(HashMap<BlockUID, BlockUID> translations, OptionSet options) {
         int count_file = 0;
         long beginTime = System.currentTimeMillis();
+
+        if (!outputFolder.exists()) {
+            outputFolder.mkdirs();
+        }
         this.countBlockStats = options.has("count-block-stats");
         this.countItemStats = options.has("count-item-stats");
 
@@ -89,6 +104,7 @@ public class World {
             logger.log(Level.INFO, "Player inventory "+count_file+"/"+playerFiles.size()+": Current File: " + playerFile.getName());
             ++count_file;
             DataInputStream dis = null;
+            DataOutputStream dos = null;
             try {
                 dis = new DataInputStream(new BufferedInputStream(new GZIPInputStream(new FileInputStream(playerFile))));
 
@@ -96,7 +112,8 @@ public class World {
                 for (ConverterPlugin plugin : playerPlugins) {
                     plugin.convert(root, translations);
                 }
-                DataOutputStream dos = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(playerFile)));
+                File dest = new File(outputFolder, getRelativePath(inputFolder, playerFile));
+                if (dest.getParentFile() != null) dest.getParentFile().mkdirs();                dos = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(dest)));
                 NbtIo.writeCompressed(root, dos);
             } catch (IOException e) {
                 logger.log(Level.SEVERE, "Unable to convert player inventories", e);
@@ -107,6 +124,13 @@ public class World {
                         dis.close();
                     } catch (IOException e) {
                         logger.log(Level.WARNING, "Unable to close input stream", e);
+                    }
+                }
+                if (dos != null) {
+                    try {
+                        dos.close();
+                    } catch (IOException e) {
+                        logger.log(Level.WARNING, "Unable to close output stream", e);
                     }
                 }
             }
@@ -120,21 +144,53 @@ public class World {
         }
         logger.log(Level.INFO, "Region files: " + regionFiles.size());
 
+        // calculate total chunks for progress reporting
+        int totalChunks = 0;
         for (RegionFileExtended r : regionFiles) {
-            logger.log(Level.INFO, "Region "+count_file+"/"+regionFiles.size()+": Current File: " + r.fileName.getName());
+            totalChunks += r.countChunks();
+        }
+
+        java.util.concurrent.atomic.AtomicInteger completedChunks = new java.util.concurrent.atomic.AtomicInteger();
+
+        ProgressListener listener = new ProgressListener() {
+            private int last = -1;
+            @Override
+            public synchronized void update(int done, int total) {
+                int pct = (int) ((done * 100L) / total);
+                if (pct != last) {
+                    last = pct;
+                    logger.log(Level.INFO, "World conversion progress: " + pct + "% (" + done + "/" + total + ")");
+                }
+            }
+        };
+
+        for (RegionFileExtended r : regionFiles) {
+            logger.log(Level.INFO, "Region " + count_file + "/" + regionFiles.size() + ": Current File: " + r.fileName.getName());
+
+            File destFile = new File(outputFolder, getRelativePath(inputFolder, r.fileName));
+            if (destFile.getParentFile() != null) destFile.getParentFile().mkdirs();
+            RegionFileExtended outRf = new RegionFileExtended(destFile);
 
             try {
-                r.convert(translations, regionPlugins);
+                r.convert(outRf, translations, regionPlugins, completedChunks, totalChunks, listener);
             } catch (IOException e) {
                 logger.log(Level.SEVERE, "Unable to convert placed blocks", e);
                 return;
+            } finally {
+                try {
+                    outRf.close();
+                } catch (IOException ignore) {}
+                try {
+                    r.close();
+                } catch (IOException ignore) {}
             }
         }
         long duration = System.currentTimeMillis() - beginTime;
-        logger.log(Level.INFO, "Done in " + duration + "ms" + System.getProperty("line.separator") + IDChanger.changedPlaced
-                + " placed blocks changed." + System.getProperty("line.separator") + IDChanger.changedPlayer
-                + " blocks in player inventories changed." + System.getProperty("line.separator") + IDChanger.changedChest
-                + " blocks in entity inventories changed.");
+        logger.log(Level.INFO,
+                "Done in " + duration + "ms" + System.getProperty("line.separator") + IDChanger.changedPlaced.get()
+                        + " placed blocks changed." + System.getProperty("line.separator") + IDChanger.changedPlayer.get()
+                        + " blocks in player inventories changed." + System.getProperty("line.separator") + IDChanger.changedChest.get()
+                        + " blocks in entity inventories changed.");
 
         if (this.countBlockStats) {
             for (Map.Entry<BlockUID, Integer> entry : IDChanger.convertedBlockCount.entrySet()) {
@@ -214,5 +270,10 @@ public class World {
         logger.log(Level.INFO, "Found "+result.size()+" player files");
 
         return result;
+    }
+
+    /** Returns the relative path from base to file using URI relativization. */
+    private static String getRelativePath(File base, File file) {
+        return base.toURI().relativize(file.toURI()).getPath();
     }
 }

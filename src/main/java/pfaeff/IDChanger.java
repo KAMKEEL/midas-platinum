@@ -32,6 +32,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.logging.*;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
@@ -41,9 +42,9 @@ public class IDChanger {
 
     public static Logger        logger                = Logger.getLogger(IDChanger.class.getName());
 
-    public static int changedPlaced = 0;
-    public static int changedChest = 0;
-    public static int changedPlayer = 0;
+    public static final AtomicInteger changedPlaced = new AtomicInteger();
+    public static final AtomicInteger changedChest = new AtomicInteger();
+    public static final AtomicInteger changedPlayer = new AtomicInteger();
 
     public static Map<BlockUID, Integer> convertedBlockCount = new HashMap<BlockUID, Integer>();
     public static Map<BlockUID, Integer> convertedItemCount = new HashMap<BlockUID, Integer>();
@@ -123,6 +124,10 @@ public class IDChanger {
                         .withRequiredArg()
                         .ofType(File.class);
 
+                acceptsAll(asList("o", "output-save-game"), "Output directory for converted save")
+                        .withRequiredArg()
+                        .ofType(File.class);
+
                 acceptsAll(asList("no-convert-blocks"), "Disable block ID conversion");
                 acceptsAll(asList("no-convert-items"), "Disable item ID conversion");
                 acceptsAll(asList("no-convert-buildcraft-pipes"),"Disable BuildCraft pipe ID conversion");
@@ -160,6 +165,7 @@ public class IDChanger {
 
 
         File saveGame = (File) options.valueOf("input-save-game");
+        File outputDir = (File) options.valueOf("output-save-game");
 
         if (!isValidSaveGame(saveGame)) {
             logger.log(Level.SEVERE, "Invalid save game: "+ saveGame.getName());
@@ -170,10 +176,13 @@ public class IDChanger {
 
         final World world;
         try {
-            world = new World(saveGame);
+            world = new World(saveGame, outputDir);
 
             logger.log(Level.INFO, "Converting...");
             world.convert(translations, options);
+
+            // shut down async executor used by conversion tasks
+            havocx42.AsyncUtil.EXECUTOR.shutdown();
 
         } catch (IOException e1) {
             logger.log(Level.WARNING, "Unable to open world, are you sure you have selected a save?");
