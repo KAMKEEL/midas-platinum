@@ -1,9 +1,9 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
   <groupId>agaricus.tools</groupId>
-  <artifactId>midas-silver</artifactId>
+  <artifactId>midas-platinum</artifactId>
   <version>1.0-SNAPSHOT</version>
-  <name>mIDas Silver</name>
+  <name>mIDas Platinum</name>
   <url>https://github.com/agaricusb/midas-silver</url>
 
   <properties>
@@ -19,9 +19,22 @@
       <type>jar</type>
       <scope>compile</scope>
     </dependency>
+    <dependency>
+      <groupId>junit</groupId>
+      <artifactId>junit</artifactId>
+      <version>RELEASE</version>
+      <scope>test</scope>
+      <exclusions>
+        <exclusion>
+          <groupId>org.hamcrest</groupId>
+          <artifactId>hamcrest-core</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
   </dependencies>
 
   <build>
+   <finalName>midas-platinum</finalName>
    <plugins>
     <plugin>
      <groupId>org.apache.maven.plugins</groupId>
