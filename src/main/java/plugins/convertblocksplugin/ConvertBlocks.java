@@ -55,7 +55,7 @@ public class ConvertBlocks implements ConverterPlugin {
                                for (int sectionIndex = 0; sectionIndex < sections.size(); sectionIndex++) {
                                        sectionTag = sections.get(sectionIndex);
                                        final Section section = new Section(sectionTag);
-                                       futures.add(AsyncUtil.EXECUTOR.submit(new Runnable() {
+                                       futures.add(AsyncUtil.SECTION_EXECUTOR.submit(new Runnable() {
                                                @Override
                                                public void run() {
                                                        convertSection(section, cache);

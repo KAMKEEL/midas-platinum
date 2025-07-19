@@ -181,8 +181,9 @@ public class IDChanger {
             logger.log(Level.INFO, "Converting...");
             world.convert(translations, options);
 
-            // shut down async executor used by conversion tasks
-            havocx42.AsyncUtil.EXECUTOR.shutdown();
+            // shut down async executors used by conversion tasks
+            havocx42.AsyncUtil.REGION_EXECUTOR.shutdown();
+            havocx42.AsyncUtil.SECTION_EXECUTOR.shutdown();
 
         } catch (IOException e1) {
             logger.log(Level.WARNING, "Unable to open world, are you sure you have selected a save?");

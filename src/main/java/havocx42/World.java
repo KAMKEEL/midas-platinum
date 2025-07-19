@@ -174,7 +174,7 @@ public class World {
             final File destFile = new File(outputFolder, getRelativePath(inputFolder, r.fileName));
             if (destFile.getParentFile() != null) destFile.getParentFile().mkdirs();
 
-            regionTasks.add(AsyncUtil.EXECUTOR.submit(new Runnable() {
+            regionTasks.add(AsyncUtil.REGION_EXECUTOR.submit(new Runnable() {
                 @Override
                 public void run() {
                     RegionFileExtended outRf = null;
