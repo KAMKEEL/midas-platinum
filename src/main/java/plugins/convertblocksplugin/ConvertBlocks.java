@@ -4,9 +4,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.Map.Entry;
-import java.util.concurrent.Future;
 import com.mojang.nbt.CompoundTag;
 import com.mojang.nbt.ListTag;
 import com.mojang.nbt.Tag;
@@ -18,7 +16,6 @@ import havocx42.Section;
 import havocx42.Status;
 import pfaeff.IDChanger;
 
-import havocx42.AsyncUtil;
 import havocx42.TranslationCache;
 
 public class ConvertBlocks implements ConverterPlugin {
@@ -47,7 +44,6 @@ public class ConvertBlocks implements ConverterPlugin {
                ArrayList<Tag> result = new ArrayList<Tag>();
                root.findAllChildrenByName(result, "Sections", true);
                final TranslationCache cache = new TranslationCache(translations);
-               List<Future<?>> futures = new ArrayList<Future<?>>();
                CompoundTag sectionTag;
                for (Tag list : result) {
                        if (list instanceof ListTag) {
@@ -55,65 +51,91 @@ public class ConvertBlocks implements ConverterPlugin {
                                for (int sectionIndex = 0; sectionIndex < sections.size(); sectionIndex++) {
                                        sectionTag = sections.get(sectionIndex);
                                        final Section section = new Section(sectionTag);
-                                       futures.add(AsyncUtil.SECTION_EXECUTOR.submit(new Runnable() {
-                                               @Override
-                                               public void run() {
-                                                       convertSection(section, cache);
-                                               }
-                                       }));
+                                       convertSection(section, cache);
                                }
                        }
                }
-
-                for (Future<?> f : futures) {
-                        try {
-                                f.get();
-                        } catch (Exception e) {
-                                throw new RuntimeException(e);
-                        }
-                }
         }
 
        private void convertSection(Section section, TranslationCache cache) {
-               HashMap<Integer, BlockUID> indexToBlockIDs = new HashMap<Integer, BlockUID>();
-               boolean found = false;
+               // Cache conversions per unique block to minimise lookups
+               Map<BlockUID, BlockUID> palette = new HashMap<BlockUID, BlockUID>();
+
+               // Arrays used for NEID block conversion
+               byte[] newBlocks = new byte[section.length()];
+               byte[] newData = new byte[section.dataTag.data.length];
+               System.arraycopy(section.dataTag.data, 0, newData, 0, newData.length);
+               byte[] newAdd = null;
+               short[] newBlocks16 = new short[section.length()];
+
+               boolean converted = false;
 
                for (int i = 0; i < section.length(); i++) {
-                       BlockUID blockUID = section.getBlockUID(i);
-                       BlockUID target = cache.get(blockUID);
-                       if (target != null) {
+                       BlockUID src = section.getBlockUID(i);
+                       BlockUID translated = palette.get(src);
+                       if (translated == null) {
+                               translated = cache.get(src);
+                               palette.put(src, translated);
+                       }
+
+                       BlockUID out = translated != null ? translated : src;
+                       if (translated != null) {
+                               converted = true;
                                IDChanger.changedPlaced.incrementAndGet();
-                               found = true;
-                               if (target.dataValue == null || target.dataValue < 16) {
-                                       indexToBlockIDs.put(Integer.valueOf(i), target);
-                               }
                                if (countBlockStats) {
-                                       Integer count = IDChanger.convertedBlockCount.get(blockUID);
+                                       Integer count = IDChanger.convertedBlockCount.get(src);
                                        if (count == null) {
-                                               IDChanger.convertedBlockCount.put(blockUID, 1);
+                                               IDChanger.convertedBlockCount.put(src, 1);
                                        } else {
-                                               IDChanger.convertedBlockCount.put(blockUID, count + 1);
+                                               IDChanger.convertedBlockCount.put(src, count + 1);
                                        }
                                }
-                       } else {
-                               if (warnUnconvertedAfter != -1 && blockUID.blockID > warnUnconvertedAfter) {
-                                       System.out.println("untranslated block:" + blockUID);
+                       } else if (warnUnconvertedAfter != -1 && src.blockID > warnUnconvertedAfter) {
+                               System.out.println("untranslated block:" + src);
+                       }
+
+                       // write block id arrays
+                       newBlocks[i] = (byte) (out.blockID & 0xFF);
+                       newBlocks16[i] = (short) out.blockID.intValue();
+                       if (out.blockID > 255) {
+                               if (newAdd == null) newAdd = new byte[2048];
+                               int nibbleIndex = i >> 1;
+                               boolean low = (i & 1) == 0;
+                               if (low) {
+                                       newAdd[nibbleIndex] = (byte) ((newAdd[nibbleIndex] & 0xF0) | (out.blockID >> 8 & 0xF));
+                               } else {
+                                       newAdd[nibbleIndex] = (byte) ((newAdd[nibbleIndex] & 0x0F) | ((out.blockID >> 4) & 0xF0));
+                               }
+                       }
+
+                       Integer dataVal = out.dataValue;
+                       if (dataVal != null && dataVal < 16) {
+                               int nibbleIndex = i >> 1;
+                               boolean low = (i & 1) == 0;
+                               if (low) {
+                                       newData[nibbleIndex] = (byte) ((newData[nibbleIndex] & 0xF0) | (dataVal & 0xF));
+                               } else {
+                                       newData[nibbleIndex] = (byte) ((newData[nibbleIndex] & 0x0F) | ((dataVal & 0xF) << 4));
                                }
                        }
                }
 
-                if (found) {
-                        for (int i = 0; i < section.length(); i++) {
-                                BlockUID blockUID = section.getBlockUID(i);
-                                section.setBlockID(i, blockUID.blockID);
-                        }
-                }
-
-                Set<Map.Entry<Integer, BlockUID>> set = indexToBlockIDs.entrySet();
-                for (Entry<Integer, BlockUID> entry : set) {
-                        section.setBlockUID(entry.getKey(), entry.getValue());
-                }
-        }
+               if (converted) {
+                       section.blocksTag.data = newBlocks;
+                       section.dataTag.data = newData;
+                       if (newAdd != null) {
+                               if (section.addTag == null) {
+                                       section.addTag = new ByteArrayTag("Add", newAdd);
+                                       section.sectionTag.put("Add", section.addTag);
+                               } else {
+                                       section.addTag.data = newAdd;
+                               }
+                       }
+                       section.block16BArray = newBlocks16;
+                       section.blocks16 = new ByteArrayTag("Blocks16", section.getBlockData16());
+                       section.sectionTag.put("Blocks16", section.blocks16);
+               }
+       }
 	@Override
 	public PluginType getPluginType() {
 		return PluginType.REGION;
