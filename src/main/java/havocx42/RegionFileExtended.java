@@ -59,6 +59,8 @@ public class RegionFileExtended extends region.RegionFile {
         IDChanger.logger.log(Level.INFO, "Chunks: " + chunks.size());
 
         List<Future<?>> futures = new ArrayList<Future<?>>();
+        final java.util.concurrent.atomic.AtomicInteger regionDone =
+                new java.util.concurrent.atomic.AtomicInteger();
 
         for (final Point p : chunks) {
             futures.add(AsyncUtil.EXECUTOR.submit(new Runnable() {
@@ -80,6 +82,10 @@ public class RegionFileExtended extends region.RegionFile {
                         if (listener != null) {
                             listener.update(done, totalChunks);
                         }
+                        int rDone = regionDone.incrementAndGet();
+                        IDChanger.logger.log(Level.INFO,
+                                "Chunk " + rDone + "/" + chunks.size() +
+                                " complete in " + fileName.getName());
                     } catch (IOException e) {
                         throw new RuntimeException(e);
                     }
