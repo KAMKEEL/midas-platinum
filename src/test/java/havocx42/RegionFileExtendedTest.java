@@ -37,7 +37,7 @@ public class RegionFileExtendedTest {
         in = new RegionFileExtended(input);
         RegionFileExtended outRf = new RegionFileExtended(output);
 
-        AtomicInteger completed = new AtomicInteger();
+        final AtomicInteger completed = new AtomicInteger();
         int total = in.countChunks();
 
         in.convert(outRf, new HashMap<BlockUID, BlockUID>(), new ArrayList<ConverterPlugin>(), completed, total,

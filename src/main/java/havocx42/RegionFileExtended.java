@@ -36,10 +36,10 @@ public class RegionFileExtended extends region.RegionFile {
         return count;
     }
 
-    public void convert(RegionFileExtended output,
-            HashMap<BlockUID, BlockUID> translations, ArrayList<ConverterPlugin> regionPlugins,
-            java.util.concurrent.atomic.AtomicInteger completedChunks, int totalChunks,
-            ProgressListener listener) throws IOException {
+    public void convert(final RegionFileExtended output,
+            final HashMap<BlockUID, BlockUID> translations, final ArrayList<ConverterPlugin> regionPlugins,
+            final java.util.concurrent.atomic.AtomicInteger completedChunks, final int totalChunks,
+            final ProgressListener listener) throws IOException {
 
         // Progress
 

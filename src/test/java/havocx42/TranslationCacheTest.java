@@ -12,7 +12,7 @@ public class TranslationCacheTest {
     @Test
     public void cachesResults() {
         HashMap<BlockUID, BlockUID> map = new HashMap<BlockUID, BlockUID>();
-        BlockUID key = new BlockUID(1, 0);
+        final BlockUID key = new BlockUID(1, 0);
         BlockUID val = new BlockUID(2, 0);
         map.put(key, val);
         TranslationCache cache = new TranslationCache(map);
@@ -26,7 +26,7 @@ public class TranslationCacheTest {
     @Test
     public void threadSafeAccess() throws Exception {
         HashMap<BlockUID, BlockUID> map = new HashMap<BlockUID, BlockUID>();
-        BlockUID key = new BlockUID(1, 0);
+        final BlockUID key = new BlockUID(1, 0);
         BlockUID val = new BlockUID(2, 0);
         map.put(key, val);
         final TranslationCache cache = new TranslationCache(map);
